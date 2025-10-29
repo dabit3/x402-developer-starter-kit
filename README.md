@@ -57,7 +57,11 @@ PORT=3000
 PAY_TO_ADDRESS=0xYourWalletAddress
 
 # Network Configuration
-# Options: "base", "base-sepolia", "ethereum", "polygon", "polygon-amoy"
+# Built-in options: "base", "base-sepolia", "polygon", "polygon-amoy", "avalanche",
+# "avalanche-fuji", "iotex", "sei", "sei-testnet", "peaq", "solana", "solana-devnet"
+# For a custom network, set NETWORK to an identifier of your choice and provide
+# ASSET_ADDRESS, ASSET_NAME, and (for EVM networks) CHAIN_ID. Direct settlement is
+# available on EVM networks only.
 NETWORK=base-sepolia
 
 # AI Provider Configuration
