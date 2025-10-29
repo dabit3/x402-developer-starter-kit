@@ -10,7 +10,7 @@ This starter kit demonstrates how to build paid APIs using x402. It:
 
 1. Receives API requests
 2. Requires payment (in this example of $0.10 USDC) before processing
-3. Verifies and settles payments through the x402 facilitator (defaulting to https://x402.org/facilitator)
+3. Verifies and settles payments through the x402 facilitator (defaulting to [https://x402.org/facilitator](https://docs.cdp.coinbase.com/x402/network-support#x402-org-facilitator))
 4. Processes requests (using OpenAI/EigenAI as configurable examples)
 5. Returns responses after payment is confirmed
 
