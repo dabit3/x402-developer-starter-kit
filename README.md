@@ -26,7 +26,7 @@ The API consists of three main components:
 
 - Node.js 18 or higher
 - A wallet with some ETH for gas fees (on your chosen network)
-- An OpenAI API key (for the example implementation - replace with your own API)
+- An OpenAI or EigenAI API key (for the example implementation - replace with your own API)
 - A wallet address to receive USDC payments
 - Optional: to deploy to EigenCompute (for Verifiable Runtime), follow [these steps](DEPLOYING_TO_EIGENCOMPUTE.md). To sign up for EigenAI (for Verifiable Inference), start [here](https://docs.eigencloud.xyz/products/eigenai/eigenai-overview)
 
