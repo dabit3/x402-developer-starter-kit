@@ -4,8 +4,6 @@
 
 A starter kit for building paid APIs using the x402 payment protocol.
 
-> To deploy to EigenCompute, follow [these steps](DEPLOYING_TO_EIGENCOMPUTE.md). To sign up for EigenAI, start [here](https://docs.eigencloud.xyz/products/eigenai/eigenai-overview)
-
 ## Overview
 
 This starter kit demonstrates how to build paid APIs using x402. It:
@@ -30,6 +28,7 @@ The API consists of three main components:
 - A wallet with some ETH for gas fees (on your chosen network)
 - An OpenAI API key (for the example implementation - replace with your own API)
 - A wallet address to receive USDC payments
+- (Optional) To deploy to EigenCompute, follow [these steps](DEPLOYING_TO_EIGENCOMPUTE.md). To sign up for EigenAI, start [here](https://docs.eigencloud.xyz/products/eigenai/eigenai-overview)
 
 ## Setup
 
