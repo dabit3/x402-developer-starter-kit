@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { EventQueue, RequestContext, TaskState } from './x402Types.js';
 
-type AiProvider = 'openai' | 'eigenai';
+type AiProvider = 'openai' | 'eigenai' | 'gaia';
 
 interface ExampleServiceOptions {
   apiKey?: string;
@@ -57,6 +57,12 @@ export class ExampleService {
       if (!defaultHeaders?.['x-api-key']) {
         throw new Error('EIGENAI_API_KEY is required when using the EigenAI provider');
       }
+      clientOptions.apiKey = defaultHeaders['x-api-key'];
+    } else if (provider === 'gaia') {
+      if (!apiKey) {
+        throw new Error('GAIA_API_KEY is required when using the Gaia provider');
+      }
+      clientOptions.apiKey = apiKey;
     }
 
     if (baseUrl) {
@@ -67,10 +73,18 @@ export class ExampleService {
       clientOptions.defaultHeaders = defaultHeaders;
     }
 
+    // For Gaia, we need to ensure the Authorization header is set correctly
+    if (provider === 'gaia' && apiKey) {
+      clientOptions.defaultHeaders = {
+        ...clientOptions.defaultHeaders,
+        'Authorization': `Bearer ${apiKey}`
+      };
+    }
+
     this.openai = new OpenAI(clientOptions);
     this.payToAddress = payToAddress;
     this.network = network;
-    this.model = model ?? (provider === 'eigenai' ? 'gpt-oss-120b-f16' : 'gpt-4o-mini');
+    this.model = model ?? (provider === 'eigenai' ? 'gpt-oss-120b-f16' : (provider === 'gaia' ? 'llama' : 'gpt-4o-mini'));
     this.temperature = temperature;
     this.maxTokens = maxTokens;
     this.seed = seed;
