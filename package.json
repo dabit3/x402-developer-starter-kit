@@ -20,7 +20,7 @@
     "eip-3009"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "x402": "^0.7.0",
     "dotenv": "^16.4.5",
