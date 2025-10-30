@@ -131,8 +131,8 @@ export class CrossmintPayer {
       };
     }
 
-    const asset = String(requirement.asset).trim().toLowerCase();
-    const payTo = String(requirement.payTo).trim().toLowerCase();
+    const asset = String(requirement.asset).trim();
+    const payTo = String(requirement.payTo).trim();
     const amount = String(requirement.maxAmountRequired);
 
     console.log('\n💰 Executing payment with Crossmint wallet...');
