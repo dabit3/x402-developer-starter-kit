@@ -2,6 +2,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { ExampleService } from './ExampleService.js';
 import { MerchantExecutor, type MerchantExecutorOptions } from './MerchantExecutor.js';
+import { CrossmintPayer } from './CrossmintPayer.js';
+import { OutboundX402Client } from './OutboundX402Client.js';
 import type { Network, PaymentPayload } from 'x402/types';
 import {
   EventQueue,
@@ -50,6 +52,11 @@ const AI_MAX_TOKENS = process.env.AI_MAX_TOKENS
 const AI_SEED = process.env.AI_SEED
   ? Number.parseInt(process.env.AI_SEED, 10)
   : undefined;
+const PAYER_MODE = process.env.PAYER_MODE?.toLowerCase() || 'none';
+const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY;
+const CROSSMINT_OWNER = process.env.CROSSMINT_OWNER;
+const CROSSMINT_CHAIN = process.env.CROSSMINT_CHAIN || NETWORK;
+const UPSTREAM_X402_URL = process.env.UPSTREAM_X402_URL;
 const SUPPORTED_NETWORKS: Network[] = [
   'base',
   'base-sepolia',
@@ -157,6 +164,39 @@ const merchantOptions: MerchantExecutorOptions = {
 
 const merchantExecutor = new MerchantExecutor(merchantOptions);
 
+let outboundClient: OutboundX402Client | undefined;
+let crossmintWalletAddress: string | undefined;
+
+async function initializeCrossmintWallet() {
+  if (PAYER_MODE === 'crossmint') {
+    if (!CROSSMINT_API_KEY || !CROSSMINT_OWNER) {
+      console.error('❌ PAYER_MODE=crossmint requires CROSSMINT_API_KEY and CROSSMINT_OWNER');
+      process.exit(1);
+    }
+
+    console.log('🔐 Initializing Crossmint wallet for outbound payments...');
+    const crossmintPayer = new CrossmintPayer({
+      apiKey: CROSSMINT_API_KEY,
+      owner: CROSSMINT_OWNER,
+      chain: CROSSMINT_CHAIN,
+    });
+
+    await crossmintPayer.initialize();
+    crossmintWalletAddress = crossmintPayer.getAddress();
+
+    outboundClient = new OutboundX402Client({
+      crossmintPayer,
+    });
+
+    console.log('✅ Crossmint wallet initialized for agent');
+    console.log(`   Wallet address: ${crossmintWalletAddress}`);
+    console.log(`   Chain: ${CROSSMINT_CHAIN}`);
+    if (UPSTREAM_X402_URL) {
+      console.log(`   Upstream service: ${UPSTREAM_X402_URL}`);
+    }
+  }
+}
+
 if (settlementMode === 'direct') {
   console.log('🧩 Using local settlement (direct EIP-3009 via RPC)');
   if (RPC_URL) {
@@ -179,7 +219,7 @@ console.log(`💵 Price per request: $0.10 USDC`);
  * Health check endpoint
  */
 app.get('/health', (req, res) => {
-  res.json({
+  const response: any = {
     status: 'healthy',
     service: 'x402-payment-api',
     version: '1.0.0',
@@ -188,7 +228,17 @@ app.get('/health', (req, res) => {
       network: NETWORK,
       price: '$0.10',
     },
-  });
+  };
+
+  if (crossmintWalletAddress) {
+    response.crossmintWallet = {
+      address: crossmintWalletAddress,
+      chain: CROSSMINT_CHAIN,
+      mode: 'outbound-payer',
+    };
+  }
+
+  res.json(response);
 });
 
 /**
@@ -389,10 +439,68 @@ app.post('/test', async (req, res) => {
   }
 });
 
+/**
+ * Proxy endpoint - demonstrates agent making payments to other x402 services
+ * This endpoint uses the agent's Crossmint wallet to pay for upstream services
+ */
+app.post('/proxy', async (req, res) => {
+  if (!outboundClient) {
+    return res.status(400).json({
+      error: 'Crossmint wallet not configured. Set PAYER_MODE=crossmint and configure CROSSMINT_API_KEY, CROSSMINT_OWNER',
+    });
+  }
+
+  if (!UPSTREAM_X402_URL) {
+    return res.status(400).json({
+      error: 'UPSTREAM_X402_URL not configured. Set this to the URL of the x402 service you want to call',
+    });
+  }
+
+  const text = req.body.text || 'Hello from the agent!';
+
+  try {
+    console.log('\n🔗 Agent making outbound payment to upstream x402 service...');
+    const result = await outboundClient.callPaidApi(UPSTREAM_X402_URL, text);
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        message: 'Payment successful and request processed',
+        data: result.data,
+        agentWallet: crossmintWalletAddress,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        agentWallet: crossmintWalletAddress,
+      });
+    }
+  } catch (error: any) {
+    console.error('❌ Error in proxy endpoint:', error);
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+    });
+  }
+});
+
 // Start the server
-app.listen(PORT, () => {
-  console.log(`\n✅ Server running on http://localhost:${PORT}`);
-  console.log(`📖 Health check: http://localhost:${PORT}/health`);
-  console.log(`🧪 Test endpoint: POST http://localhost:${PORT}/test`);
-  console.log(`🚀 Main endpoint: POST http://localhost:${PORT}/process\n`);
+async function startServer() {
+  await initializeCrossmintWallet();
+  
+  app.listen(PORT, () => {
+    console.log(`\n✅ Server running on http://localhost:${PORT}`);
+    console.log(`📖 Health check: http://localhost:${PORT}/health`);
+    console.log(`🧪 Test endpoint: POST http://localhost:${PORT}/test`);
+    console.log(`🚀 Main endpoint: POST http://localhost:${PORT}/process`);
+    if (outboundClient) {
+      console.log(`🔗 Proxy endpoint: POST http://localhost:${PORT}/proxy (agent makes payments with Crossmint wallet)`);
+    }
+    console.log('');
+  });
+}
+
+startServer().catch((error) => {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
 });
