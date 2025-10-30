@@ -64,19 +64,19 @@ PAY_TO_ADDRESS=0xYourWalletAddress
 # available on EVM networks only.
 NETWORK=base-sepolia
 
-# AI Provider Configuration
-# Options: "openai" (default) or "eigenai"
-# AI_PROVIDER=openai
-# AI_MODEL=gpt-4o-mini
-# AI_TEMPERATURE=0.7
-# AI_MAX_TOKENS=500
-# AI_SEED=42
-
 # OpenAI Configuration
 # Your OpenAI API key for the example service (replace with your own API configuration)
 OPENAI_API_KEY=your_openai_api_key_here
 # Optional: override the OpenAI base URL
 # OPENAI_BASE_URL=https://api.openai.com/v1
+
+# AI Provider Configuration (default is openai)
+# Options: "openai" or "eigenai"
+# AI_PROVIDER=eigenai
+# AI_MODEL=gpt-oss-120b-f16
+# AI_TEMPERATURE=0.7
+# AI_MAX_TOKENS=500
+# AI_SEED=42
 
 # EigenAI Configuration (required if AI_PROVIDER=eigenai)
 # EIGENAI_API_KEY=your_eigenai_api_key_here
