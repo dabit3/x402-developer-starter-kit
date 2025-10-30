@@ -11,14 +11,14 @@ This starter kit demonstrates how to build paid APIs using x402. It:
 1. Receives API requests
 2. Requires payment (in this example of $0.10 USDC) before processing
 3. Verifies and settles payments through the x402 facilitator (defaulting to [https://x402.org/facilitator](https://docs.cdp.coinbase.com/x402/network-support#x402-org-facilitator))
-4. Processes requests (using OpenAI/EigenAI as configurable examples)
+4. Processes requests (using OpenAI, EigenAI, or Gaia as configurable examples)
 5. Returns responses after payment is confirmed
 
 ## Architecture
 
 The API consists of three main components:
 
-- **ExampleService**: Example service logic that processes requests using OpenAI or EigenAI (replace with your own service implementation)
+- **ExampleService**: Example service logic that processes requests using OpenAI, EigenAI, or Gaia (replace with your own service implementation)
 - **MerchantExecutor**: Calls the x402 facilitator service for verification/settlement (defaults to `https://x402.org/facilitator`, configurable via `FACILITATOR_URL`)
 - **Server**: Express HTTP server that orchestrates payment validation and request processing
 
@@ -26,7 +26,7 @@ The API consists of three main components:
 
 - Node.js 18 or higher
 - A wallet with some ETH for gas fees (on your chosen network)
-- An OpenAI or EigenAI API key (for the example implementation - replace with your own API)
+- An OpenAI, EigenAI, or Gaia API key (for the example implementation - replace with your own API)
 - A wallet address to receive USDC payments
 - Optional: to deploy to EigenCompute (for Verifiable Runtime), follow [these steps](DEPLOYING_TO_EIGENCOMPUTE.md). To sign up for EigenAI (for Verifiable Inference), start [here](https://docs.eigencloud.xyz/products/eigenai/eigenai-overview)
 
@@ -65,7 +65,7 @@ PAY_TO_ADDRESS=0xYourWalletAddress
 NETWORK=base-sepolia
 
 # AI Provider Configuration
-# Options: "openai" (default) or "eigenai"
+# Options: "openai" (default), "eigenai", or "gaia"
 # AI_PROVIDER=openai
 # AI_MODEL=gpt-4o-mini
 # AI_TEMPERATURE=0.7
@@ -81,6 +81,11 @@ OPENAI_API_KEY=your_openai_api_key_here
 # EigenAI Configuration (required if AI_PROVIDER=eigenai)
 # EIGENAI_API_KEY=your_eigenai_api_key_here
 # EIGENAI_BASE_URL=https://eigenai.eigencloud.xyz/v1
+
+# Gaia AI Configuration (required if AI_PROVIDER=gaia)
+# GAIA_NODE_URL=https://your-node-id.gaia.domains/v1
+# GAIA_MODEL_NAME=llama
+# GAIA_API_KEY=your_gaia_api_key_here
 
 # Facilitator Configuration (optional)
 # FACILITATOR_URL=https://your-custom-facilitator.com
@@ -130,12 +135,13 @@ X402_DEBUG=true
 **AI Provider:**
 - Default: `AI_PROVIDER=openai` (requires `OPENAI_API_KEY`)
 - EigenAI: set `AI_PROVIDER=eigenai`, provide `EIGENAI_API_KEY`, and optionally override `EIGENAI_BASE_URL`
-- Use `AI_MODEL`, `AI_TEMPERATURE`, `AI_MAX_TOKENS`, and `AI_SEED` to tune inference behaviour for either provider
+- Gaia: set `AI_PROVIDER=gaia`, provide `GAIA_API_KEY` and `GAIA_NODE_URL`, and optionally set `GAIA_MODEL_NAME`
+- Use `AI_MODEL`, `AI_TEMPERATURE`, `AI_MAX_TOKENS`, and `AI_SEED` to tune inference behaviour for any provider
 
 **Important:**
 - `PAY_TO_ADDRESS` should be your wallet address where you want to receive USDC payments
 - `NETWORK` should match where you want to receive payments (recommend `base-sepolia` for testing)
-- `OPENAI_API_KEY` is required unless `AI_PROVIDER=eigenai` (then provide `EIGENAI_API_KEY`)
+- `OPENAI_API_KEY` is required unless `AI_PROVIDER=eigenai` (then provide `EIGENAI_API_KEY`) or `AI_PROVIDER=gaia` (then provide `GAIA_API_KEY`)
 - Never commit your `.env` file to version control
 
 ## Running the API
@@ -296,7 +302,7 @@ For a complete client example, see the [`x402` library documentation](https://ww
 3. **Client signs payment** → Creates EIP-3009 authorization
 4. **Client submits payment** → Sends signed payment back to API
 5. **API verifies payment** → Checks signature and authorization
-6. **API processes request** → Calls your service (OpenAI in this example)
+6. **API processes request** → Calls your service (OpenAI, EigenAI, or Gaia in this example)
 7. **API settles payment** → Completes blockchain transaction
 8. **API returns response** → Sends the service response
 
@@ -313,7 +319,7 @@ Make sure `SERVICE_URL` reflects the public URL of your paid endpoint so the fac
 
 - **Missing payment**: Returns 402 Payment Required
 - **Invalid payment**: Returns payment verification failure
-- **OpenAI error**: Returns error message in task status
+- **AI provider error**: Returns error message in task status
 - **Settlement failure**: Returns settlement error details
 
 ## Development
@@ -365,6 +371,14 @@ To test with real USDC payments:
 
 Make sure you've set `OPENAI_API_KEY` in your `.env` file.
 
+### "EIGENAI_API_KEY is required"
+
+Make sure you've set `EIGENAI_API_KEY` in your `.env` file when using `AI_PROVIDER=eigenai`.
+
+### "GAIA_API_KEY is required"
+
+Make sure you've set `GAIA_API_KEY` and `GAIA_NODE_URL` in your `.env` file when using `AI_PROVIDER=gaia`.
+
 ### "PAY_TO_ADDRESS is required"
 
 Make sure you've set `PAY_TO_ADDRESS` in your `.env` file to your wallet address.
@@ -378,13 +392,13 @@ Make sure you've set `PAY_TO_ADDRESS` in your `.env` file to your wallet address
 - For facilitator settlement errors, confirm the facilitator is reachable and that any `FACILITATOR_URL` / `FACILITATOR_API_KEY` settings are correct
 - For local settlement errors, ensure your `PRIVATE_KEY` has gas and that the configured `RPC_URL` (or the network default) is responsive
 
-### OpenAI rate limits
+### AI provider rate limits
 
-If you hit OpenAI rate limits, consider:
-- Using `gpt-3.5-turbo` instead of `gpt-4o-mini`
+If you hit rate limits, consider:
+- Using a different model
 - Implementing request queuing
 - Adding rate limiting to your API
-- Replacing OpenAI with your own service
+- Replacing the AI provider with your own service
 
 ## Security Considerations
 
@@ -397,7 +411,7 @@ If you hit OpenAI rate limits, consider:
 
 ## Next Steps
 
-- Replace the example OpenAI service with your own API logic
+- Replace the example AI service with your own API logic
 - Implement request queuing for high volume
 - Add support for different payment tiers
 - Create a web client interface
@@ -414,3 +428,5 @@ ISC
 - [x402 Package on npm](https://www.npmjs.com/package/x402)
 - [A2A Specification](https://github.com/google/a2a)
 - [OpenAI API Documentation](https://platform.openai.com/docs)
+
+```

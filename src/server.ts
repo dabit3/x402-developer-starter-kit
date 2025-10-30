@@ -1,5 +1,5 @@
-import express from 'express';
-import dotenv from 'dotenv';
+import express, { Express, Request, Response } from 'express';
+import * as dotenv from 'dotenv';
 import { ExampleService } from './ExampleService.js';
 import { MerchantExecutor, type MerchantExecutorOptions } from './MerchantExecutor.js';
 import type { Network, PaymentPayload } from 'x402/types';
@@ -40,6 +40,9 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL;
 const EIGENAI_BASE_URL =
   process.env.EIGENAI_BASE_URL || 'https://eigenai.eigencloud.xyz/v1';
 const EIGENAI_API_KEY = process.env.EIGENAI_API_KEY;
+const GAIA_NODE_URL = process.env.GAIA_NODE_URL;
+const GAIA_API_KEY = process.env.GAIA_API_KEY;
+const GAIA_MODEL_NAME = process.env.GAIA_MODEL_NAME;
 const AI_MODEL = process.env.AI_MODEL;
 const AI_TEMPERATURE = process.env.AI_TEMPERATURE
   ? Number.parseFloat(process.env.AI_TEMPERATURE)
@@ -76,9 +79,18 @@ if (AI_PROVIDER === 'openai') {
     console.error('❌ EIGENAI_API_KEY (or OPENAI_API_KEY fallback) is required when AI_PROVIDER=eigenai');
     process.exit(1);
   }
+} else if (AI_PROVIDER === 'gaia') {
+  if (!GAIA_API_KEY) {
+    console.error('❌ GAIA_API_KEY is required when AI_PROVIDER=gaia');
+    process.exit(1);
+  }
+  if (!GAIA_NODE_URL) {
+    console.error('❌ GAIA_NODE_URL is required when AI_PROVIDER=gaia');
+    process.exit(1);
+  }
 } else {
   console.error(
-    `❌ AI_PROVIDER "${AI_PROVIDER}" is not supported. Supported providers: openai, eigenai`
+    `❌ AI_PROVIDER "${AI_PROVIDER}" is not supported. Supported providers: openai, eigenai, gaia`
   );
   process.exit(1);
 }
@@ -118,21 +130,24 @@ if (settlementMode === 'direct' && !PRIVATE_KEY) {
 }
 
 const exampleService = new ExampleService({
-  provider: AI_PROVIDER === 'eigenai' ? 'eigenai' : 'openai',
-  apiKey: AI_PROVIDER === 'openai' ? OPENAI_API_KEY : undefined,
-  baseUrl:
-    AI_PROVIDER === 'eigenai'
-      ? EIGENAI_BASE_URL
-      : OPENAI_BASE_URL || undefined,
-  defaultHeaders:
-    AI_PROVIDER === 'eigenai'
-      ? { 'x-api-key': (EIGENAI_API_KEY || OPENAI_API_KEY)! }
-      : undefined,
+  provider: AI_PROVIDER as 'openai' | 'eigenai' | 'gaia',
+  apiKey: AI_PROVIDER === 'openai' ? OPENAI_API_KEY : 
+          AI_PROVIDER === 'eigenai' ? (EIGENAI_API_KEY || OPENAI_API_KEY) : 
+          GAIA_API_KEY,
+  baseUrl: AI_PROVIDER === 'openai' ? OPENAI_BASE_URL || undefined :
+           AI_PROVIDER === 'eigenai' ? EIGENAI_BASE_URL :
+           GAIA_NODE_URL,
+  defaultHeaders: AI_PROVIDER === 'eigenai' ? 
+    { 'x-api-key': (EIGENAI_API_KEY || OPENAI_API_KEY)! } : 
+    AI_PROVIDER === 'gaia' ? 
+    { 'Authorization': `Bearer ${GAIA_API_KEY}` } : 
+    undefined,
   payToAddress: PAY_TO_ADDRESS,
   network: resolvedNetwork,
-  model:
-    AI_MODEL ??
-    (AI_PROVIDER === 'eigenai' ? 'gpt-oss-120b-f16' : 'gpt-4o-mini'),
+  model: AI_MODEL ??
+    (AI_PROVIDER === 'eigenai' ? 'gpt-oss-120b-f16' : 
+     AI_PROVIDER === 'gaia' ? (GAIA_MODEL_NAME || 'llama') : 
+     'gpt-4o-mini'),
   temperature: AI_TEMPERATURE ?? 0.7,
   maxTokens: AI_MAX_TOKENS ?? 500,
   seed: AI_PROVIDER === 'eigenai' ? AI_SEED : undefined,

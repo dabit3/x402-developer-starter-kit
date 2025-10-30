@@ -26,8 +26,7 @@
     "dotenv": "^16.4.5",
     "ethers": "^6.15.0",
     "express": "^4.21.2",
-    "openai": "^4.78.0",
-    "x402": "^0.7.0"
+    "openai": "^4.78.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

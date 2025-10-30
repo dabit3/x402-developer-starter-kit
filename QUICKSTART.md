@@ -5,7 +5,7 @@ Get the x402 payment API running in 5 minutes!
 ## Prerequisites
 
 - Node.js 18+ installed
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- OpenAI, EigenAI, or Gaia API key ([Get one here](https://platform.openai.com/api-keys))
 - A wallet address to receive USDC payments
 
 ## Setup Steps
@@ -29,10 +29,29 @@ Edit the `.env` file:
 nano .env
 ```
 
-**Required variables:**
+**Required variables (choose one provider):**
 
+For OpenAI:
 ```env
+AI_PROVIDER=openai
 OPENAI_API_KEY=sk-your-openai-api-key
+```
+
+For EigenAI:
+```env
+AI_PROVIDER=eigenai
+EIGENAI_API_KEY=your-eigenai-api-key
+```
+
+For Gaia:
+```env
+AI_PROVIDER=gaia
+GAIA_API_KEY=your-gaia-api-key
+GAIA_NODE_URL=https://your-node-id.gaia.domains/v1
+```
+
+**Payment configuration:**
+```env
 PAY_TO_ADDRESS=0xYourWalletAddress
 ```
 
@@ -94,7 +113,15 @@ See the [full README](./README.md) for complete documentation.
 
 ### "OPENAI_API_KEY is required"
 
-Make sure `.env` file exists and has `OPENAI_API_KEY` set.
+Make sure `.env` file exists and has `OPENAI_API_KEY` set when using OpenAI provider.
+
+### "EIGENAI_API_KEY is required"
+
+Make sure `.env` file exists and has `EIGENAI_API_KEY` set when using EigenAI provider.
+
+### "GAIA_API_KEY is required"
+
+Make sure `.env` file exists and has `GAIA_API_KEY` and `GAIA_NODE_URL` set when using Gaia provider.
 
 ### "PAY_TO_ADDRESS is required"
 
@@ -133,7 +160,7 @@ PORT=3001
 - Read the [full README](./README.md) for detailed documentation
 - Check the [x402 package](https://www.npmjs.com/package/x402) for payment integration
 - Build a client to interact with your API
-- Replace the OpenAI example with your own service logic
+- Replace the AI example with your own service logic
 - Deploy to production
 
 ## Support
