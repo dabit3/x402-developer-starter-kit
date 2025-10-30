@@ -22,11 +22,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "x402": "^0.7.0",
+    "@crossmint/wallets-sdk": "^0.14.0",
     "dotenv": "^16.4.5",
     "ethers": "^6.15.0",
     "express": "^4.21.2",
     "openai": "^4.78.0",
+    "viem": "^2.33.1",
     "x402": "^0.7.0"
   },
   "devDependencies": {

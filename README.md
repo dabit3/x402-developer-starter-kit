@@ -359,6 +359,182 @@ To test with real USDC payments:
 3. Use a client that implements the x402 protocol
 4. Make sure your wallet has testnet ETH for gas
 
+## Using Crossmint Wallets as the Agent Payer
+
+This starter kit now supports using Crossmint smart wallets for the agent to make payments to other x402 services. This enables your agent to act as a client (payer) to other paid APIs, not just receive payments.
+
+### What is Crossmint?
+
+Crossmint provides smart wallet infrastructure that allows you to create and manage wallets using API keys instead of private keys. This is ideal for server-side agents that need to make payments programmatically.
+
+### Key Differences: EIP-3009 vs Direct-Transfer
+
+**EIP-3009 (Traditional):**
+- Uses `transferWithAuthorization` on USDC contracts
+- Requires ECDSA signatures from EOA (Externally Owned Account) wallets
+- Compatible with traditional wallets (ethers.js Wallet)
+- Default mode in this starter kit
+
+**Direct-Transfer (Crossmint):**
+- Uses standard ERC-20 `transfer` function
+- Compatible with smart contract wallets (EIP-1271/ERC-6492 signatures)
+- Required for Crossmint wallets
+- Merchant must advertise `scheme: "direct-transfer"` in payment requirements
+
+**Important:** Crossmint smart wallets cannot be used with EIP-3009 because USDC's `transferWithAuthorization` expects ECDSA signatures from EOA wallets, not smart contract wallet signatures (EIP-1271/ERC-6492).
+
+### Setup for Crossmint Payer Mode
+
+1. **Get a Crossmint API Key:**
+   - Sign up at [Crossmint](https://www.crossmint.com/)
+   - Get your API key (starts with `sk_staging_` or `sk_production_`)
+
+2. **Configure Environment Variables:**
+
+Add to your `.env` file:
+
+```env
+# Crossmint Wallet Configuration
+PAYER_MODE=crossmint
+CROSSMINT_API_KEY=sk_staging_your_api_key_here
+CROSSMINT_OWNER=email:agent@yourdomain.com
+CROSSMINT_CHAIN=base-sepolia
+```
+
+**Configuration Details:**
+- `PAYER_MODE`: Set to `crossmint` to use Crossmint wallets (default is `eip3009`)
+- `CROSSMINT_API_KEY`: Your Crossmint API key
+- `CROSSMINT_OWNER`: Identifier for the wallet owner (e.g., `email:agent@yourdomain.com` or `id:your-service-id`)
+- `CROSSMINT_CHAIN`: Network to use (e.g., `base-sepolia`, `base`, `polygon`, etc.)
+
+3. **Fund Your Crossmint Wallet:**
+
+The wallet will be automatically created when you run the test client. You'll need to fund it with:
+- USDC tokens for payments
+- ETH for gas fees (on EVM networks)
+
+Get the wallet address from the test output and send testnet tokens to it.
+
+### Testing with Crossmint
+
+Run the test client with Crossmint mode:
+
+```bash
+npm test
+```
+
+The test client will:
+1. Initialize a Crossmint wallet for the configured owner
+2. Check if the merchant supports `direct-transfer` scheme
+3. Execute an ERC-20 transfer from the Crossmint wallet
+4. Submit the transaction hash as payment proof
+5. Process the request after payment verification
+
+**Example Output:**
+```
+🔐 Using Crossmint wallet for payments
+🔐 Initializing Crossmint wallet...
+   Owner: email:agent@yourdomain.com
+   Chain: base-sepolia
+✅ Crossmint wallet initialized: 0x1234...
+💳 Using Crossmint wallet for payment...
+📤 Sending ERC-20 transfer transaction...
+✅ Transaction submitted: 0xabcd...
+✅ Payment accepted and request processed!
+```
+
+### Merchant Compatibility
+
+**Your agent can only pay merchants that support the `direct-transfer` scheme.**
+
+To check if a merchant is compatible:
+- The merchant's payment requirements must include an option with `scheme: "direct-transfer"`
+- If the merchant only supports `scheme: "exact"` (EIP-3009), Crossmint wallets cannot be used
+
+**Testing Against Compatible Merchants:**
+
+The [hello-crossmint-wallets-a2a](https://github.com/Crossmint/crossmint-agentic-finance/tree/main/hello-crossmint-wallets-a2a) example server supports direct-transfer and can be used for testing:
+
+```bash
+# In another terminal, clone and run the example merchant
+git clone https://github.com/Crossmint/crossmint-agentic-finance.git
+cd crossmint-agentic-finance/hello-crossmint-wallets-a2a
+npm install
+npm run server
+
+# Update your .env to point to this server
+AGENT_URL=http://localhost:10000
+```
+
+### Architecture: Agent as Both Merchant and Client
+
+With Crossmint integration, your agent can now:
+
+**As a Merchant (Receive Payments):**
+- Uses `MerchantExecutor` to verify and settle incoming payments
+- Supports both EIP-3009 (exact) and facilitator modes
+- Receives payments to `PAY_TO_ADDRESS`
+
+**As a Client (Make Payments):**
+- Uses `CrossmintPayer` to make outbound payments
+- Only supports direct-transfer scheme
+- Pays from Crossmint smart wallet
+
+This enables agent-to-agent payment flows where your agent can call other paid x402 services.
+
+### Code Example: Using CrossmintPayer
+
+```typescript
+import { CrossmintPayer } from './CrossmintPayer.js';
+
+// Initialize the payer
+const payer = new CrossmintPayer({
+  apiKey: process.env.CROSSMINT_API_KEY!,
+  owner: 'email:agent@yourdomain.com',
+  chain: 'base-sepolia',
+});
+
+await payer.initialize();
+console.log(`Wallet address: ${payer.getAddress()}`);
+
+// Check if merchant is compatible
+if (!CrossmintPayer.isCompatible(paymentRequired)) {
+  console.error('Merchant does not support direct-transfer');
+  return;
+}
+
+// Execute payment
+const result = await payer.pay(paymentRequired);
+if (result.success) {
+  console.log(`Payment successful: ${result.transactionHash}`);
+  // Use result.payload in your x402 message metadata
+}
+```
+
+### Limitations
+
+1. **Scheme Compatibility:** Only works with merchants that accept `scheme: "direct-transfer"`
+2. **Smart Wallet Signatures:** Cannot be used with EIP-3009 `transferWithAuthorization`
+3. **Network Support:** Limited to networks supported by Crossmint
+4. **API Key Security:** Keep your Crossmint API key secure and server-side only
+
+### Switching Between Modes
+
+You can switch between EIP-3009 and Crossmint modes by changing the `PAYER_MODE` environment variable:
+
+**EIP-3009 Mode (Traditional):**
+```env
+PAYER_MODE=eip3009
+CLIENT_PRIVATE_KEY=your_private_key_here
+```
+
+**Crossmint Mode (Smart Wallet):**
+```env
+PAYER_MODE=crossmint
+CROSSMINT_API_KEY=sk_staging_your_api_key_here
+CROSSMINT_OWNER=email:agent@yourdomain.com
+```
+
 ## Troubleshooting
 
 ### "OPENAI_API_KEY is required"

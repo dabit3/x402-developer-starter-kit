@@ -3,11 +3,16 @@ import { Wallet } from 'ethers';
 import dotenv from 'dotenv';
 import type { PaymentPayload, PaymentRequirements } from 'x402/types';
 import { Message, Task } from './x402Types.js';
+import { CrossmintPayer } from './CrossmintPayer.js';
 
 dotenv.config();
 
 const AGENT_URL = process.env.AGENT_URL || 'http://localhost:3000';
 const CLIENT_PRIVATE_KEY = process.env.CLIENT_PRIVATE_KEY;
+const PAYER_MODE = process.env.PAYER_MODE?.toLowerCase() || 'eip3009';
+const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY;
+const CROSSMINT_OWNER = process.env.CROSSMINT_OWNER;
+const CROSSMINT_CHAIN = process.env.CROSSMINT_CHAIN || process.env.NETWORK || 'base-sepolia';
 
 interface AgentResponse {
   success?: boolean;
@@ -103,13 +108,27 @@ async function createPaymentPayload(
  */
 export class TestClient {
   private wallet?: Wallet;
+  private crossmintPayer?: CrossmintPayer;
   private agentUrl: string;
+  private payerMode: string;
 
   constructor(privateKey?: string, agentUrl: string = AGENT_URL) {
-    if (privateKey) {
-      this.wallet = new Wallet(privateKey);
-      console.log(`💼 Client wallet: ${this.wallet.address}`);
+    this.payerMode = PAYER_MODE;
+    
+    if (this.payerMode === 'crossmint') {
+      console.log('🔐 Using Crossmint wallet for payments');
+      if (!CROSSMINT_API_KEY || !CROSSMINT_OWNER) {
+        console.warn('⚠️  CROSSMINT_API_KEY and CROSSMINT_OWNER required for Crossmint mode');
+        console.warn('   Falling back to EIP-3009 mode');
+        this.payerMode = 'eip3009';
+      }
     }
+    
+    if (this.payerMode === 'eip3009' && privateKey) {
+      this.wallet = new Wallet(privateKey);
+      console.log(`💼 Client wallet (EIP-3009): ${this.wallet.address}`);
+    }
+    
     this.agentUrl = agentUrl;
   }
 
@@ -160,11 +179,39 @@ export class TestClient {
   }
 
   /**
+   * Initialize Crossmint payer if needed
+   */
+  private async initializeCrossmintPayer(): Promise<void> {
+    if (this.payerMode === 'crossmint' && !this.crossmintPayer) {
+      if (!CROSSMINT_API_KEY || !CROSSMINT_OWNER) {
+        throw new Error('CROSSMINT_API_KEY and CROSSMINT_OWNER required for Crossmint mode');
+      }
+      
+      this.crossmintPayer = new CrossmintPayer({
+        apiKey: CROSSMINT_API_KEY,
+        owner: CROSSMINT_OWNER,
+        chain: CROSSMINT_CHAIN,
+      });
+      
+      await this.crossmintPayer.initialize();
+    }
+  }
+
+  /**
    * Send a paid request (with payment)
    */
   async sendPaidRequest(text: string): Promise<AgentResponse> {
-    if (!this.wallet) {
-      throw new Error('Client wallet not configured. Set CLIENT_PRIVATE_KEY in .env');
+    if (this.payerMode === 'crossmint') {
+      await this.initializeCrossmintPayer();
+      if (!this.crossmintPayer) {
+        throw new Error('Failed to initialize Crossmint payer');
+      }
+    } else if (this.payerMode === 'eip3009') {
+      if (!this.wallet) {
+        throw new Error('Client wallet not configured. Set CLIENT_PRIVATE_KEY in .env');
+      }
+    } else {
+      throw new Error(`Unknown payer mode: ${this.payerMode}`);
     }
 
     // Step 1: Send initial request
@@ -184,10 +231,38 @@ export class TestClient {
     console.log(`Amount: ${paymentRequired.accepts[0].maxAmountRequired} (micro units)`);
 
     try {
-      // Process the payment (sign it)
-      console.log('🔐 Signing payment...');
-      const paymentPayload = await createPaymentPayload(paymentRequired, this.wallet);
-      console.log('✅ Payment signed successfully');
+      let paymentPayload: PaymentPayload;
+      
+      if (this.payerMode === 'crossmint') {
+        console.log('💳 Using Crossmint wallet for payment...');
+        
+        if (!CrossmintPayer.isCompatible(paymentRequired)) {
+          console.error('❌ Merchant does not support direct-transfer scheme (required for Crossmint)');
+          console.error('   Merchant must advertise scheme: "direct-transfer" to accept Crossmint payments');
+          return {
+            error: 'Merchant incompatible with Crossmint payments',
+            x402: paymentRequired,
+          };
+        }
+        
+        const paymentResult = await this.crossmintPayer!.pay(paymentRequired);
+        
+        if (!paymentResult.success || !paymentResult.payload) {
+          console.error(`❌ Crossmint payment failed: ${paymentResult.error}`);
+          return {
+            error: paymentResult.error || 'Crossmint payment failed',
+            x402: paymentRequired,
+          };
+        }
+        
+        paymentPayload = paymentResult.payload;
+        console.log('✅ Crossmint payment executed successfully');
+        console.log(`   Transaction: ${paymentResult.transactionHash}`);
+      } else {
+        console.log('🔐 Signing EIP-3009 payment...');
+        paymentPayload = await createPaymentPayload(paymentRequired, this.wallet!);
+        console.log('✅ Payment signed successfully');
+      }
 
       console.log(`Payment payload created for ${paymentPayload.network}`);
 
@@ -290,9 +365,14 @@ async function main() {
   }
 
   // Test 2: Request with payment (only if wallet configured)
-  if (CLIENT_PRIVATE_KEY) {
+  const hasEIP3009Wallet = CLIENT_PRIVATE_KEY && PAYER_MODE === 'eip3009';
+  const hasCrossmintWallet = CROSSMINT_API_KEY && CROSSMINT_OWNER && PAYER_MODE === 'crossmint';
+  
+  if (hasEIP3009Wallet || hasCrossmintWallet) {
     console.log('\n\n📋 TEST 2: Request with payment');
     console.log('=====================================');
+    console.log(`Payment mode: ${PAYER_MODE}`);
+    
     try {
       const response = await client.sendPaidRequest('Tell me a joke about TypeScript!');
 
@@ -312,13 +392,18 @@ async function main() {
       console.error('❌ Test 2 failed:', error);
     }
   } else {
-    console.log('\n\n⚠️  TEST 2: Skipped (no CLIENT_PRIVATE_KEY configured)');
+    console.log('\n\n⚠️  TEST 2: Skipped (no payment wallet configured)');
     console.log('=====================================');
-    console.log('To test with payment, set CLIENT_PRIVATE_KEY in .env');
-    console.log('This wallet needs:');
-    console.log('  - USDC tokens (testnet or mainnet)');
-    console.log('  - USDC approval for transfers');
-    console.log('  - Gas tokens (ETH) for the network');
+    console.log('To test with payment, choose one of:');
+    console.log('\n1. EIP-3009 mode (traditional wallet):');
+    console.log('   - Set CLIENT_PRIVATE_KEY in .env');
+    console.log('   - Set PAYER_MODE=eip3009 (or leave unset)');
+    console.log('   - Wallet needs USDC tokens and ETH for gas');
+    console.log('\n2. Crossmint mode (smart wallet):');
+    console.log('   - Set PAYER_MODE=crossmint in .env');
+    console.log('   - Set CROSSMINT_API_KEY in .env');
+    console.log('   - Set CROSSMINT_OWNER (e.g., email:agent@yourdomain.com)');
+    console.log('   - Note: Only works with merchants that support "direct-transfer" scheme');
   }
 
   console.log('\n\n✅ Tests complete!');
