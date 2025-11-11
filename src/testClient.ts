@@ -57,6 +57,15 @@ function getChainId(network: string): number {
   return chainId;
 }
 
+/**
+ * Creates a payment payload by signing an EIP-712 typed data authorization.
+ * This generates a transferWithAuthorization signature that allows the merchant
+ * to pull USDC from the payer's wallet on-chain.
+ * 
+ * @param paymentRequired - The payment requirements from the agent (x402 format)
+ * @param wallet - The wallet that will sign the authorization
+ * @returns A PaymentPayload containing the signature and authorization details
+ */
 async function createPaymentPayload(
   paymentRequired: any,
   wallet: Wallet
@@ -264,7 +273,17 @@ export class TestClient {
 }
 
 /**
- * Main test function
+ * Main test function that demonstrates the x402 payment flow.
+ * 
+ * This function runs two tests:
+ * 1. Sends a request without payment to verify the agent returns payment requirements
+ * 2. If a wallet is configured, sends a paid request by:
+ *    - Creating an EIP-712 signed authorization for USDC transfer
+ *    - Submitting the payment payload with the request
+ *    - Receiving and displaying the AI agent's response after payment verification
+ * 
+ * The function showcases the complete x402 protocol flow from payment requirement
+ * discovery through payment submission and settlement.
  */
 async function main() {
   console.log('🧪 x402 AI Agent Test Client');
