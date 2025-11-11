@@ -241,6 +241,9 @@ app.post('/process', async (req, res) => {
       | undefined;
     const paymentStatus = message.metadata?.['x402.payment.status'];
 
+    // IMPORTANT - Check if payment is missing or not yet submitted
+    // If not, we return a payment-required response with the payment requirements embedded in the task metadata.
+    // This follows the A2A pattern where payment requirements are communicated through message metadata.
     if (!paymentPayload || paymentStatus !== 'payment-submitted') {
       const paymentRequired = merchantExecutor.createPaymentRequiredResponse();
 
@@ -278,6 +281,8 @@ app.post('/process', async (req, res) => {
       });
     }
 
+    // Verify the payment signature and authorization details (amount, recipient, timing) against the payment requirements.
+    // This ensures the payment is cryptographically valid and matches what the merchant expects before processing the request.
     const verifyResult = await merchantExecutor.verifyPayment(paymentPayload);
 
     if (!verifyResult.isValid) {
@@ -320,10 +325,18 @@ app.post('/process', async (req, res) => {
       ...(verifyResult.payer ? { 'x402.payment.payer': verifyResult.payer } : {}),
     };
 
+    // Execute the AI agent's core logic to process the user's request.
+    // This calls the LLM (e.g., OpenAI) with the conversation context and streams
+    // the response back through the event queue, updating the task with the AI's reply.
     await exampleService.execute(context, eventQueue);
 
+    // Settle the payment on-chain by executing the transferWithAuthorization transaction.
+    // This submits the signed authorization to the blockchain, transferring USDC from the payer
+    // to the merchant's wallet. Returns settlement result with transaction hash and status.
     const settlement = await merchantExecutor.settlePayment(paymentPayload);
 
+    // Update the task metadata with the payment status and settlement result.
+    // This includes the transaction hash (if successful) and any error reason (if failed).
     task.metadata = {
       ...(task.metadata || {}),
       'x402.payment.status': settlement.success ? 'payment-completed' : 'payment-failed',
@@ -341,6 +354,9 @@ app.post('/process', async (req, res) => {
 
     console.log('📤 Sending response\n');
 
+    // Return the final response to the client, including the success/failure status,
+    // the final task (with AI response and payment status), and the settlement result.
+    // This completes the A2A flow by sending the AI's response back to the client.
     return res.json({
       success: settlement.success,
       task: events[events.length - 1],
