@@ -1,6 +1,6 @@
 {
-  "name": "x402-developer-starter-kit",
-  "version": "1.0.0",
+  "name": "x402-starter-kit",
+  "version": "0.0.1",
   "description": "Starter kit for building paid APIs using the x402 payment protocol",
   "main": "dist/server.js",
   "type": "module",
