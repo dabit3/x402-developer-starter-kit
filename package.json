@@ -1,9 +1,10 @@
 {
-  "name": "x402-starter-kit",
+  "name": "create-x402",
   "version": "0.0.1",
   "description": "Starter kit for building paid APIs using the x402 payment protocol",
   "main": "dist/server.js",
   "type": "module",
+  "bin": { "create-x402": "./cli.js" },
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
